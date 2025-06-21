@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envío Masivo WhatsApp - TextMeBot</title>
+    <meta name="description" content="Sistema web para envío masivo de mensajes a grupos de WhatsApp usando TextMeBot API">
+    <meta name="keywords" content="WhatsApp, envío masivo, TextMeBot, grupos, mensajes">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .main-panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .tab:hover:not(.active) {
+            background: #e9ecef;
+        }
+        
+        .tab-content {
+            padding: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .groups-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .group-card {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .group-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .group-card.selected {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+        
+        .group-card h4 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        
+        .group-info {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+        
+        .checkbox {
+            transform: scale(1.2);
+            margin-right: 8px;
+        }
+        
+        .status-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #e9ecef;
+        }
+        
+        .status-item.success {
+            border-left-color: #28a745;
+        }
+        
+        .status-item.error {
+            border-left-color: #dc3545;
+        }
+        
+        .status-item.pending {
+            border-left-color: #ffc107;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d1e7dd;
+            border: 1px solid #badbcc;
+            color: #0f5132;
+        }
+        
+        .alert-danger {
+            background: #f8d7da;
+            border: 1px solid #f5c2c7;
+            color: #842029;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            border: 1px solid #ffecb5;
+            color: #664d03;
+        }
+        
+        .file-upload {
+            border: 2px dashed #e9ecef;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .file-upload:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .file-upload.dragover {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Envío Masivo WhatsApp</h1>
+            <p>Sistema de envío de mensajes a múltiples grupos usando TextMeBot API</p>
+            <p style="font-size: 0.9em; opacity: 0.8;">
+                📖 <a href="#" style="color: white;" onclick="showHelp()">Guía de Uso</a> | 
+                📁 <a href="#" style="color: white;" onclick="exportConfig()">Exportar Config</a> |
+                ⭐ <a href="https://github.com/tu-usuario/whatsapp-bulk-sender" target="_blank" style="color: white;">GitHub</a>
+            </p>
+        </div>
+        
+        <div class="main-panel">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('config')">⚙️ Configuración</div>
+                <div class="tab" onclick="switchTab('groups')">👥 Grupos</div>
+                <div class="tab" onclick="switchTab('message')">💬 Mensaje</div>
+                <div class="tab" onclick="switchTab('send')">📤 Enviar</div>
+            </div>
+            
+            <!-- CONFIGURACIÓN -->
+            <div id="config-tab" class="tab-content">
+                <h3>Configuración de API</h3>
+                <div class="form-group">
+                    <label for="apikey">API Key de TextMeBot:</label>
+                    <input type="password" id="apikey" class="form-control" placeholder="Ingresa tu API Key">
+                    <small style="color: #6c757d;">Obtén tu API Key en <a href="https://textmebot.com" target="_blank">textmebot.com</a></small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="delay">Retraso entre envíos (segundos):</label>
+                    <input type="number" id="delay" class="form-control" value="2" min="1" max="10">
+                    <small style="color: #6c757d;">Recomendado: 2-3 segundos para evitar limitaciones</small>
+                </div>
+                
+                <button class="btn btn-primary" onclick="testConnection()">🔄 Verificar Conexión</button>
+                <div id="connection-status"></div>
+            </div>
+            
+            <!-- GESTIÓN DE GRUPOS -->
+            <div id="groups-tab" class="tab-content hidden">
+                <h3>Gestión de Grupos</h3>
+                
+                <div class="form-group">
+                    <label for="invitation-code">Código de Invitación del Grupo:</label>
+                    <input type="text" id="invitation-code" class="form-control" placeholder="RTiy3mHqIDfD22H1InRR5E">
+                    <small style="color: #6c757d;">Obtén el código desde el enlace de invitación de WhatsApp</small>
+                </div>
+                
+                <button class="btn btn-primary" onclick="addGroup()">➕ Agregar Grupo</button>
+                <button class="btn btn-secondary" onclick="loadFromFile()">📁 Cargar desde Archivo</button>
+                <button class="btn btn-danger" onclick="clearAllGroups()">🗑️ Limpiar Todo</button>
+                
+                <div class="groups-container" id="groups-container">
+                    <!-- Los grupos se cargarán aquí dinámicamente -->
+                </div>
+                
+                <div class="status-panel" id="groups-status">
+                    <h4>Grupos Configurados: <span id="groups-count">0</span></h4>
+                    <p>Selecciona los grupos a los que deseas enviar el mensaje</p>
+                </div>
+            </div>
+            
+            <!-- MENSAJE -->
+            <div id="message-tab" class="tab-content hidden">
+                <h3>Configurar Mensaje</h3>
+                
+                <div class="form-group">
+                    <label for="message-type">Tipo de Mensaje:</label>
+                    <select id="message-type" class="form-control" onchange="toggleMessageType()">
+                        <option value="text">📝 Solo Texto</option>
+                        <option value="image">🖼️ Texto + Imagen</option>
+                        <option value="document">📄 Texto + Documento</option>
+                        <option value="audio">🎵 Audio</option>
+                        <option value="video">🎬 Video</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="message-text">Texto del Mensaje:</label>
+                    <textarea id="message-text" class="form-control" rows="6" placeholder="Escribe tu mensaje aquí..."></textarea>
+                    <small style="color: #6c757d;">Puedes usar variables: {grupo}, {fecha}, {hora}</small>
+                </div>
+                
+                <div id="file-section" class="form-group hidden">
+                    <label for="file-url">URL del Archivo:</label>
+                    <input type="url" id="file-url" class="form-control" placeholder="https://ejemplo.com/archivo.jpg">
+                    <small style="color: #6c757d;">El archivo debe estar disponible públicamente en internet</small>
+                </div>
+                
+                <div class="file-upload" onclick="document.getElementById('template-file').click()">
+                    <p>📤 Clic para subir plantilla de mensaje</p>
+                    <input type="file" id="template-file" accept=".txt" style="display: none;" onchange="loadTemplate()">
+                </div>
+                
+                <button class="btn btn-primary" onclick="previewMessage()">👁️ Vista Previa</button>
+                <button class="btn btn-secondary" onclick="saveTemplate()">💾 Guardar Plantilla</button>
+                
+                <div id="message-preview" class="status-panel hidden">
+                    <h4>Vista Previa del Mensaje:</h4>
+                    <div id="preview-content"></div>
+                </div>
+            </div>
+            
+            <!-- ENVÍO -->
+            <div id="send-tab" class="tab-content hidden">
+                <h3>Envío Masivo</h3>
+                
+                <div class="alert alert-warning">
+                    <strong>⚠️ Importante:</strong> Asegúrate de ser miembro de todos los grupos seleccionados. 
+                    TextMeBot puede banear tu número si intentas enviar a grupos donde no perteneces.
+                </div>
+                
+                <div id="send-summary">
+                    <h4>Resumen del Envío:</h4>
+                    <p><strong>Grupos seleccionados:</strong> <span id="selected-groups-count">0</span></p>
+                    <p><strong>Tipo de mensaje:</strong> <span id="message-type-summary">-</span></p>
+                    <p><strong>Retraso configurado:</strong> <span id="delay-summary">-</span> segundos</p>
+                </div>
+                
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <p id="progress-text">Listo para enviar</p>
+                
+                <button class="btn btn-success" id="send-btn" onclick="startSending()">🚀 Iniciar Envío Masivo</button>
+                <button class="btn btn-danger hidden" id="stop-btn" onclick="stopSending()">⏹️ Detener Envío</button>
+                
+                <div class="status-panel" id="sending-status">
+                    <h4>Estado del Envío:</h4>
+                    <div id="status-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let groups = [];
+        let sendingProcess = null;
+        let currentTab = 'config';
+        
+        // Gestión de pestañas
+        function switchTab(tab) {
+            // Ocultar todas las pestañas
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            
+            // Mostrar pestaña seleccionada
+            document.getElementById(tab + '-tab').classList.remove('hidden');
+            event.target.classList.add('active');
+            currentTab = tab;
+            
+            if (tab === 'send') {
+                updateSendSummary();
+            }
+        }
+        
+        // Verificar conexión con la API
+        async function testConnection() {
+            const apikey = document.getElementById('apikey').value;
+            if (!apikey) {
+                showAlert('connection-status', 'danger', 'Por favor ingresa tu API Key');
+                return;
+            }
+            
+            try {
+                showAlert('connection-status', 'warning', 'Verificando conexión...');
+                
+                // Test con número inválido para verificar API key
+                const response = await fetch('https://api.textmebot.com/send.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipient: '+123456789',
+                        apikey: apikey,
+                        text: 'test'
+                    })
+                });
+                
+                const result = await response.text();
+                
+                if (result.includes('Invalid APIkey')) {
+                    showAlert('connection-status', 'danger', '❌ API Key inválida');
+                } else {
+                    showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida');
+                    saveConfig();
+                }
+            } catch (error) {
+                showAlert('connection-status', 'danger', '❌ Error de conexión: ' + error.message);
+            }
+        }
+        
+        // Agregar grupo
+        async function addGroup() {
+            const invitationCode = document.getElementById('invitation-code').value.trim();
+            const apikey = document.getElementById('apikey').value;
+            
+            if (!invitationCode || !apikey) {
+                alert('Por favor completa el código de invitación y API Key');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`https://api.textmebot.com/send.php?apikey=${apikey}&group_info=${invitationCode}&json=yes`);
+                const result = await response.json();
+                
+                if (result.status) {
+                    const group = {
+                        id: result.group_id,
+                        name: result.subject,
+                        invitationCode: invitationCode,
+                        selected: true
+                    };
+                    
+                    // Evitar duplicados
+                    if (!groups.find(g => g.id === group.id)) {
+                        groups.push(group);
+                        renderGroups();
+                        document.getElementById('invitation-code').value = '';
+                        saveConfig();
+                    } else {
+                        alert('Este grupo ya está agregado');
+                    }
+                } else {
+                    alert('Error al obtener información del grupo: ' + result.msg);
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        // Renderizar lista de grupos
+        function renderGroups() {
+            const container = document.getElementById('groups-container');
+            container.innerHTML = '';
+            
+            groups.forEach((group, index) => {
+                const card = document.createElement('div');
+                card.className = `group-card ${group.selected ? 'selected' : ''}`;
+                card.innerHTML = `
+                    <h4>${group.name}</h4>
+                    <div class="group-info">ID: ${group.id}</div>
+                    <div class="group-info">Código: ${group.invitationCode}</div>
+                    <label>
+                        <input type="checkbox" class="checkbox" ${group.selected ? 'checked' : ''} 
+                               onchange="toggleGroupSelection(${index})">
+                        Incluir en envío
+                    </label>
+                    <button class="btn btn-danger btn-sm" onclick="removeGroup(${index})" style="margin-top: 10px;">Eliminar</button>
+                `;
+                container.appendChild(card);
+            });
+            
+            document.getElementById('groups-count').textContent = groups.length;
+        }
+        
+        // Toggle selección de grupo
+        function toggleGroupSelection(index) {
+            groups[index].selected = !groups[index].selected;
+            renderGroups();
+            saveConfig();
+        }
+        
+        // Eliminar grupo
+        function removeGroup(index) {
+            if (confirm('¿Eliminar este grupo?')) {
+                groups.splice(index, 1);
+                renderGroups();
+                saveConfig();
+            }
+        }
+        
+        // Limpiar todos los grupos
+        function clearAllGroups() {
+            if (confirm('¿Eliminar todos los grupos?')) {
+                groups = [];
+                renderGroups();
+                saveConfig();
+            }
+        }
+        
+        // Cambiar tipo de mensaje
+        function toggleMessageType() {
+            const type = document.getElementById('message-type').value;
+            const fileSection = document.getElementById('file-section');
+            
+            if (type === 'text') {
+                fileSection.classList.add('hidden');
+            } else {
+                fileSection.classList.remove('hidden');
+                const input = document.getElementById('file-url');
+                input.placeholder = getPlaceholderForType(type);
+            }
+        }
+        
+        function getPlaceholderForType(type) {
+            const placeholders = {
+                'image': 'https://ejemplo.com/imagen.jpg',
+                'document': 'https://ejemplo.com/documento.pdf',
+                'audio': 'https://ejemplo.com/audio.mp3',
+                'video': 'https://ejemplo.com/video.mp4'
+            };
+            return placeholders[type] || '';
+        }
+        
+        // Vista previa del mensaje
+        function previewMessage() {
+            const text = document.getElementById('message-text').value;
+            const type = document.getElementById('message-type').value;
+            const fileUrl = document.getElementById('file-url').value;
+            
+            let preview = text.replace('{grupo}', 'Grupo de Ejemplo')
+                             .replace('{fecha}', new Date().toLocaleDateString())
+                             .replace('{hora}', new Date().toLocaleTimeString());
+            
+            let content = `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">`;
+            content += `<strong>Tipo:</strong> ${type}<br>`;
+            content += `<strong>Texto:</strong><br>${preview.replace(/\n/g, '<br>')}`;
+            
+            if (type !== 'text' && fileUrl) {
+                content += `<br><strong>Archivo:</strong> ${fileUrl}`;
+            }
+            content += `</div>`;
+            
+            document.getElementById('preview-content').innerHTML = content;
+            document.getElementById('message-preview').classList.remove('hidden');
+        }
+        
+        // Iniciar envío masivo
+        async function startSending() {
+            const selectedGroups = groups.filter(g => g.selected);
+            if (selectedGroups.length === 0) {
+                alert('Selecciona al menos un grupo');
+                return;
+            }
+            
+            const apikey = document.getElementById('apikey').value;
+            const text = document.getElementById('message-text').value;
+            const delay = parseInt(document.getElementById('delay').value) * 1000;
+            
+            if (!apikey || !text) {
+                alert('Completa la configuración y el mensaje');
+                return;
+            }
+            
+            document.getElementById('send-btn').classList.add('hidden');
+            document.getElementById('stop-btn').classList.remove('hidden');
+            
+            const statusList = document.getElementById('status-list');
+            statusList.innerHTML = '';
+            
+            let sent = 0;
+            const total = selectedGroups.length;
+            
+            for (let i = 0; i < selectedGroups.length; i++) {
+                if (!sendingProcess) break; // Si se detuvo el proceso
+                
+                const group = selectedGroups[i];
+                const statusItem = document.createElement('div');
+                statusItem.className = 'status-item pending';
+                statusItem.innerHTML = `
+                    <span>${group.name}</span>
+                    <span>Enviando...</span>
+                `;
+                statusList.appendChild(statusItem);
+                
+                try {
+                    const messageText = text.replace('{grupo}', group.name)
+                                          .replace('{fecha}', new Date().toLocaleDateString())
+                                          .replace('{hora}', new Date().toLocaleTimeString());
+                    
+                    const payload = {
+                        recipient: group.id,
+                        apikey: apikey,
+                        text: messageText
+                    };
+                    
+                    const type = document.getElementById('message-type').value;
+                    const fileUrl = document.getElementById('file-url').value;
+                    
+                    if (type !== 'text' && fileUrl) {
+                        if (type === 'image' || type === 'video') {
+                            payload.file = fileUrl;
+                        } else if (type === 'audio') {
+                            payload.audio = fileUrl;
+                        } else if (type === 'document') {
+                            payload.document = fileUrl;
+                        }
+                    }
+                    
+                    const response = await fetch('https://api.textmebot.com/send.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        statusItem.className = 'status-item success';
+                        statusItem.innerHTML = `
+                            <span>${group.name}</span>
+                            <span>✅ Enviado</span>
+                        `;
+                        sent++;
+                    } else {
+                        statusItem.className = 'status-item error';
+                        statusItem.innerHTML = `
+                            <span>${group.name}</span>
+                            <span>❌ Error: ${result.comment}</span>
+                        `;
+                    }
+                } catch (error) {
+                    statusItem.className = 'status-item error';
+                    statusItem.innerHTML = `
+                        <span>${group.name}</span>
+                        <span>❌ Error: ${error.message}</span>
+                    `;
+                }
+                
+                // Actualizar progreso
+                const progress = ((i + 1) / total) * 100;
+                document.getElementById('progress-fill').style.width = progress + '%';
+                document.getElementById('progress-text').textContent = 
+                    `Progreso: ${i + 1}/${total} (${sent} exitosos)`;
+                
+                // Esperar antes del siguiente envío
+                if (i < selectedGroups.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            
+            document.getElementById('send-btn').classList.remove('hidden');
+            document.getElementById('stop-btn').classList.add('hidden');
+            document.getElementById('progress-text').textContent = 
+                `Completado: ${sent}/${total} mensajes enviados`;
+            
+            sendingProcess = true; // Reset para próximo envío
+        }
+        
+        // Detener envío
+        function stopSending() {
+            sendingProcess = null;
+            document.getElementById('send-btn').classList.remove('hidden');
+            document.getElementById('stop-btn').classList.add('hidden');
+            document.getElementById('progress-text').textContent = 'Envío detenido';
+        }
+        
+        // Actualizar resumen de envío
+        function updateSendSummary() {
+            const selectedCount = groups.filter(g => g.selected).length;
+            const messageType = document.getElementById('message-type').value;
+            const delay = document.getElementById('delay').value;
+            
+            document.getElementById('selected-groups-count').textContent = selectedCount;
+            document.getElementById('message-type-summary').textContent = messageType;
+            document.getElementById('delay-summary').textContent = delay;
+        }
+        
+        // Mostrar alertas
+        function showAlert(containerId, type, message) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+        
+        // Guardar configuración
+        function saveConfig() {
+            const config = {
+                apikey: document.getElementById('apikey').value,
+                delay: document.getElementById('delay').value,
+                groups: groups,
+                messageText: document.getElementById('message-text').value,
+                messageType: document.getElementById('message-type').value,
+                fileUrl: document.getElementById('file-url').value
+            };
+            localStorage.setItem('whatsapp-bulk-config', JSON.stringify(config));
+        }
+        
+        // Cargar configuración
+        function loadConfig() {
+            const saved = localStorage.getItem('whatsapp-bulk-config');
+            if (saved) {
+                const config = JSON.parse(saved);
+                document.getElementById('apikey').value = config.apikey || '';
+                document.getElementById('delay').value = config.delay || 2;
+                groups = config.groups || [];
+                document.getElementById('message-text').value = config.messageText || '';
+                document.getElementById('message-type').value = config.messageType || 'text';
+                document.getElementById('file-url').value = config.fileUrl || '';
+                
+                renderGroups();
+                toggleMessageType();
+            }
+        }
+        
+        // Guardar plantilla
+        function saveTemplate() {
+            const text = document.getElementById('message-text').value;
+            if (!text) {
+                alert('Escribe un mensaje primero');
+                return;
+            }
+            
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'plantilla-mensaje.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Cargar plantilla
+        function loadTemplate() {
+            const file = document.getElementById('template-file').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('message-text').value = e.target.result;
+                    saveConfig();
+                };
+                reader.readAsText(file);
+            }
+        }
+        
+        // Cargar grupos desde archivo
+        function loadFromFile() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,.txt';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        try {
+                            let data;
+                            if (file.name.endsWith('.json')) {
+                                data = JSON.parse(event.target.result);
+                                if (Array.isArray(data)) {
+                                    groups = data;
+                                } else if (data.groups) {
+                                    groups = data.groups;
+                                }
+                            } else {
+                                // Archivo de texto con códigos de invitación
+                                const codes = event.target.result.split('\n').filter(line => line.trim());
+                                alert(`Se cargarán ${codes.length} códigos. Esto puede tomar unos momentos.`);
+                                loadGroupsFromCodes(codes);
+                                return;
+                            }
+                            renderGroups();
+                            saveConfig();
+                            alert('Grupos cargados exitosamente');
+                        } catch (error) {
+                            alert('Error al cargar el archivo: ' + error.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+        
+        // Cargar grupos desde códigos de invitación
+        async function loadGroupsFromCodes(codes) {
+            const apikey = document.getElementById('apikey').value;
+            if (!apikey) {
+                alert('Configura tu API Key primero');
+                return;
+            }
+            
+            for (let i = 0; i < codes.length; i++) {
+                const code = codes[i].trim();
+                if (!code) continue;
+                
+                try {
+                    const response = await fetch(`https://api.textmebot.com/send.php?apikey=${apikey}&group_info=${code}&json=yes`);
+                    const result = await response.json();
+                    
+                    if (result.status) {
+                        const group = {
+                            id: result.group_id,
+                            name: result.subject,
+                            invitationCode: code,
+                            selected: true
+                        };
+                        
+                        // Evitar duplicados
+                        if (!groups.find(g => g.id === group.id)) {
+                            groups.push(group);
+                        }
+                    }
+                    
+                    // Pequeña pausa entre requests
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (error) {
+                    console.error(`Error loading group ${code}:`, error);
+                }
+            }
+            
+            renderGroups();
+            saveConfig();
+            alert(`Se cargaron ${groups.length} grupos exitosamente`);
+        }
+        
+        // Exportar configuración
+        function exportConfig() {
+            const config = {
+                groups: groups,
+                messageText: document.getElementById('message-text').value,
+                messageType: document.getElementById('message-type').value,
+                fileUrl: document.getElementById('file-url').value,
+                delay: document.getElementById('delay').value,
+                exportDate: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'whatsapp-bulk-config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Mostrar ayuda
+        function showHelp() {
+            const helpContent = `
+            <h3>📖 Guía de Uso Rápida</h3>
+            <div style="text-align: left; max-width: 600px; margin: 0 auto;">
+                <h4>1️⃣ Configuración</h4>
+                <p>• Obtén tu API Key en <a href="https://textmebot.com" target="_blank">textmebot.com</a></p>
+                <p>• Ingresa tu API Key y verifica la conexión</p>
+                
+                <h4>2️⃣ Agregar Grupos</h4>
+                <p>• Copia el código del enlace de invitación de WhatsApp</p>
+                <p>• Ejemplo: https://chat.whatsapp.com/<strong>RTiy3mHqIDfD22H1InRR5E</strong></p>
+                <p>• Solo usa la parte después de la última "/"</p>
+                
+                <h4>3️⃣ Crear Mensaje</h4>
+                <p>• Escribe tu mensaje con variables: {grupo}, {fecha}, {hora}</p>
+                <p>• Para archivos: sube a Google Drive y usa enlace público</p>
+                
+                <h4>4️⃣ Enviar</h4>
+                <p>• Selecciona grupos y revisa el resumen</p>
+                <p>• ⚠️ <strong>IMPORTANTE:</strong> Debes ser miembro de todos los grupos</p>
+                
+                <h4>🛠️ Consejos</h4>
+                <p>• Usa retraso de 2-3 segundos entre envíos</p>
+                <p>• Prueba con pocos grupos primero</p>
+                <p>• Guarda tu configuración regularmente</p>
+            </div>
+            `;
+            
+            // Crear modal
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: rgba(0,0,0,0.8); z-index: 1000; display: flex; 
+                align-items: center; justify-content: center; padding: 20px;
+            `;
+            
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background: white; padding: 30px; border-radius: 15px; 
+                max-width: 90%; max-height: 90%; overflow-y: auto;
+                position: relative;
+            `;
+            
+            content.innerHTML = helpContent + `
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="this.closest('.modal').remove()">Cerrar</button>
+                </div>
+            `;
+            
+            modal.className = 'modal';
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // Cerrar con ESC o clic fuera
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') modal.remove();
+            });
+        }
+        
+        // Detectar si se está ejecutando en GitHub Pages
+        function detectEnvironment() {
+            const isGitHubPages = window.location.hostname.includes('github.io');
+            
+            if (isGitHubPages) {
+                console.log('🚀 Ejecutándose en GitHub Pages');
+                
+                // Mostrar aviso de primera vez
+                if (!localStorage.getItem('whatsapp-bulk-first-visit')) {
+                    setTimeout(() => {
+                        showAlert('connection-status', 'warning', 
+                            '👋 ¡Bienvenido! Esta es tu primera visita. Clic en "Guía de Uso" para empezar.');
+                        localStorage.setItem('whatsapp-bulk-first-visit', 'true');
+                    }, 1000);
+                }
+            }
+        }
+        
+        // Inicialización
+        sendingProcess = true;
+        loadConfig();
+        detectEnvironment();
+        
+        // Auto-guardar cada 30 segundos
+        setInterval(saveConfig, 30000);
+        
+        // Eventos para auto-guardar
+        document.getElementById('message-text').addEventListener('input', saveConfig);
+        document.getElementById('message-type').addEventListener('change', saveConfig);
+        document.getElementById('file-url').addEventListener('input', saveConfig);
+        document.getElementById('delay').addEventListener('input', saveConfig);
+    </script>
+</body>
+</html>
