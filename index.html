@@ -447,26 +447,17 @@
             try {
                 showAlert('connection-status', 'warning', 'Verificando conexión...');
                 
-                // Detectar si estamos en HTTPS o HTTP
-                const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-                let apiUrl = `${protocol}://api.textmebot.com/send.php`;
+                // Intentar con proxy CORS
+                const proxyUrl = 'https://api.allorigins.win/get?url=';
+                const targetUrl = `http://api.textmebot.com/send.php?recipient=123456789&apikey=${encodeURIComponent(apikey)}&text=test&json=yes`;
+                const testUrl = proxyUrl + encodeURIComponent(targetUrl);
                 
-                // Si estamos en HTTPS (GitHub Pages), usar proxy CORS o informar al usuario
-                if (protocol === 'https') {
-                    // Intentar con HTTPS primero
-                    apiUrl = 'https://api.textmebot.com/send.php';
-                }
+                console.log('Testing with proxy URL:', testUrl);
                 
-                const testUrl = `${apiUrl}?recipient=123456789&apikey=${encodeURIComponent(apikey)}&text=test&json=yes`;
+                const response = await fetch(testUrl);
+                const data = await response.json();
+                const result = data.contents;
                 
-                console.log('Testing with URL:', testUrl);
-                
-                const response = await fetch(testUrl, {
-                    method: 'GET',
-                    mode: 'cors'
-                });
-                
-                const result = await response.text();
                 console.log('Test response:', result);
                 
                 try {
@@ -494,39 +485,19 @@
                 }
             } catch (error) {
                 console.error('Connection error:', error);
-                if (error.message.includes('Failed to fetch')) {
-                    showAlert('connection-status', 'warning', 
-                        `⚠️ Error CORS detectado. Opciones:<br>
-                        1. <a href="#" onclick="downloadForLocal()">Descargar para usar en localhost</a><br>
-                        2. <a href="#" onclick="continueAnyway()">Continuar (puede funcionar para envío real)</a><br>
-                        3. La API puede funcionar en el envío real aunque falle la prueba`);
-                } else {
-                    showAlert('connection-status', 'danger', '❌ Error de conexión: ' + error.message);
-                }
+                showAlert('connection-status', 'warning', 
+                    `⚠️ No se pudo verificar la conexión por CORS. Opciones:<br>
+                    1. <strong>Modo Manual:</strong> <a href="#" onclick="enableManualMode()">Agregar grupos manualmente</a><br>
+                    2. <strong>Extensión CORS:</strong> Instalar extensión que desactive CORS<br>
+                    3. El sistema puede funcionar para envío real sin validación`);
             }
         }
         
-        // Función para continuar sin validación
-        function continueAnyway() {
-            showAlert('connection-status', 'success', '✅ Continuando sin validación - Procede a agregar grupos');
-            saveConfig();
-        }
-        
-        // Función para descargar versión local
-        function downloadForLocal() {
-            const htmlContent = document.documentElement.outerHTML
-                .replace(/https:\/\/api\.textmebot\.com/g, 'http://api.textmebot.com');
-            
-            const blob = new Blob([htmlContent], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'whatsapp-bulk-sender-local.html';
-            a.click();
-            URL.revokeObjectURL(url);
-            
+        // Modo manual sin validación
+        function enableManualMode() {
             showAlert('connection-status', 'success', 
-                '📁 Archivo descargado. Abre el archivo descargado en tu navegador desde localhost para usar HTTP');
+                '✅ Modo manual activado. Puedes agregar grupos directamente con sus IDs o códigos de invitación.');
+            saveConfig();
         }
         
         // Agregar grupo
@@ -540,17 +511,15 @@
             }
             
             try {
-                // Detectar protocolo
-                const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-                const apiUrl = `${protocol}://api.textmebot.com/send.php`;
+                // Intentar con proxy CORS
+                const proxyUrl = 'https://api.allorigins.win/get?url=';
+                const targetUrl = `http://api.textmebot.com/send.php?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(invitationCode)}&json=yes`;
+                const requestUrl = proxyUrl + encodeURIComponent(targetUrl);
                 
-                // Usar GET como en la documentación
-                const response = await fetch(`${apiUrl}?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(invitationCode)}&json=yes`, {
-                    method: 'GET',
-                    mode: 'cors'
-                });
+                const response = await fetch(requestUrl);
+                const data = await response.json();
+                const resultText = data.contents;
                 
-                const resultText = await response.text();
                 console.log('Group info response:', resultText);
                 
                 try {
@@ -577,11 +546,39 @@
                         alert('Error al obtener información del grupo: ' + (result.msg || result.comment || 'Error desconocido'));
                     }
                 } catch (parseError) {
-                    alert('Error al procesar respuesta del servidor. Verifica tu API Key y código de invitación.');
+                    // Modo manual: agregar grupo sin validación
+                    const groupName = prompt('No se pudo validar el grupo automáticamente. ¿Cuál es el nombre del grupo?', 'Grupo Manual');
+                    if (groupName) {
+                        addGroupManually(invitationCode, groupName);
+                    }
                 }
             } catch (error) {
-                alert('Error de conexión: ' + error.message + '\n\nPuedes intentar:\n1. Usar la versión local (HTTP)\n2. Continuar y probar el envío directamente');
+                console.error('Error:', error);
+                // Modo manual como fallback
+                const groupName = prompt('Error de conexión. ¿Cuál es el nombre del grupo para agregarlo manualmente?', 'Grupo Manual');
+                if (groupName) {
+                    addGroupManually(invitationCode, groupName);
+                }
             }
+        }
+        
+        // Agregar grupo manualmente sin validación
+        function addGroupManually(invitationCode, groupName) {
+            // Generar ID ficticio para grupos manuales
+            const group = {
+                id: `manual_${Date.now()}@g.us`,
+                name: groupName,
+                invitationCode: invitationCode,
+                selected: true,
+                manual: true
+            };
+            
+            groups.push(group);
+            renderGroups();
+            document.getElementById('invitation-code').value = '';
+            saveConfig();
+            
+            alert(`Grupo "${groupName}" agregado manualmente. El envío se intentará con el código de invitación.`);
         }
         
         // Renderizar lista de grupos
@@ -727,32 +724,30 @@
                     const type = document.getElementById('message-type').value;
                     const fileUrl = document.getElementById('file-url').value;
                     
-                    // Detectar protocolo
-                    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-                    const apiUrl = `${protocol}://api.textmebot.com/send.php`;
+                    // Usar proxy CORS para envío
+                    const proxyUrl = 'https://api.allorigins.win/get?url=';
                     
                     // Construir URL según la documentación
-                    let sendUrl = `${apiUrl}?recipient=${encodeURIComponent(group.id)}&apikey=${encodeURIComponent(apikey)}&text=${encodeURIComponent(messageText)}&json=yes`;
+                    let targetUrl = `http://api.textmebot.com/send.php?recipient=${encodeURIComponent(group.id)}&apikey=${encodeURIComponent(apikey)}&text=${encodeURIComponent(messageText)}&json=yes`;
                     
                     // Agregar archivos según el tipo
                     if (type !== 'text' && fileUrl) {
                         if (type === 'image' || type === 'video') {
-                            sendUrl += `&file=${encodeURIComponent(fileUrl)}`;
+                            targetUrl += `&file=${encodeURIComponent(fileUrl)}`;
                         } else if (type === 'audio') {
-                            sendUrl += `&audio=${encodeURIComponent(fileUrl)}`;
+                            targetUrl += `&audio=${encodeURIComponent(fileUrl)}`;
                         } else if (type === 'document') {
-                            sendUrl += `&document=${encodeURIComponent(fileUrl)}`;
+                            targetUrl += `&document=${encodeURIComponent(fileUrl)}`;
                         }
                     }
                     
+                    const sendUrl = proxyUrl + encodeURIComponent(targetUrl);
                     console.log('Sending to:', sendUrl);
                     
-                    const response = await fetch(sendUrl, {
-                        method: 'GET',
-                        mode: 'cors'
-                    });
+                    const response = await fetch(sendUrl);
+                    const data = await response.json();
+                    const resultText = data.contents;
                     
-                    const resultText = await response.text();
                     console.log('Send response:', resultText);
                     
                     let success = false;
