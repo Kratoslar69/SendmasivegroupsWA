@@ -447,8 +447,19 @@
             try {
                 showAlert('connection-status', 'warning', 'Verificando conexión...');
                 
-                // Test usando GET con parámetros como en la documentación
-                const testUrl = `https://api.textmebot.com/send.php?recipient=123456789&apikey=${encodeURIComponent(apikey)}&text=test&json=yes`;
+                // Detectar si estamos en HTTPS o HTTP
+                const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+                let apiUrl = `${protocol}://api.textmebot.com/send.php`;
+                
+                // Si estamos en HTTPS (GitHub Pages), usar proxy CORS o informar al usuario
+                if (protocol === 'https') {
+                    // Intentar con HTTPS primero
+                    apiUrl = 'https://api.textmebot.com/send.php';
+                }
+                
+                const testUrl = `${apiUrl}?recipient=123456789&apikey=${encodeURIComponent(apikey)}&text=test&json=yes`;
+                
+                console.log('Testing with URL:', testUrl);
                 
                 const response = await fetch(testUrl, {
                     method: 'GET',
@@ -473,14 +484,49 @@
                     } else if (result.includes('Failed') && result.includes('Invalid Destination')) {
                         showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida (número de prueba inválido como se esperaba)');
                         saveConfig();
+                    } else if (result.includes('Success') || result.includes('success')) {
+                        showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida');
+                        saveConfig();
                     } else {
                         showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida');
                         saveConfig();
                     }
                 }
             } catch (error) {
-                showAlert('connection-status', 'danger', '❌ Error de conexión: ' + error.message + '. Intenta usar HTTP en lugar de HTTPS si estás en localhost.');
+                console.error('Connection error:', error);
+                if (error.message.includes('Failed to fetch')) {
+                    showAlert('connection-status', 'warning', 
+                        `⚠️ Error CORS detectado. Opciones:<br>
+                        1. <a href="#" onclick="downloadForLocal()">Descargar para usar en localhost</a><br>
+                        2. <a href="#" onclick="continueAnyway()">Continuar (puede funcionar para envío real)</a><br>
+                        3. La API puede funcionar en el envío real aunque falle la prueba`);
+                } else {
+                    showAlert('connection-status', 'danger', '❌ Error de conexión: ' + error.message);
+                }
             }
+        }
+        
+        // Función para continuar sin validación
+        function continueAnyway() {
+            showAlert('connection-status', 'success', '✅ Continuando sin validación - Procede a agregar grupos');
+            saveConfig();
+        }
+        
+        // Función para descargar versión local
+        function downloadForLocal() {
+            const htmlContent = document.documentElement.outerHTML
+                .replace(/https:\/\/api\.textmebot\.com/g, 'http://api.textmebot.com');
+            
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'whatsapp-bulk-sender-local.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showAlert('connection-status', 'success', 
+                '📁 Archivo descargado. Abre el archivo descargado en tu navegador desde localhost para usar HTTP');
         }
         
         // Agregar grupo
@@ -494,8 +540,12 @@
             }
             
             try {
+                // Detectar protocolo
+                const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+                const apiUrl = `${protocol}://api.textmebot.com/send.php`;
+                
                 // Usar GET como en la documentación
-                const response = await fetch(`https://api.textmebot.com/send.php?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(invitationCode)}&json=yes`, {
+                const response = await fetch(`${apiUrl}?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(invitationCode)}&json=yes`, {
                     method: 'GET',
                     mode: 'cors'
                 });
@@ -530,7 +580,7 @@
                     alert('Error al procesar respuesta del servidor. Verifica tu API Key y código de invitación.');
                 }
             } catch (error) {
-                alert('Error de conexión: ' + error.message);
+                alert('Error de conexión: ' + error.message + '\n\nPuedes intentar:\n1. Usar la versión local (HTTP)\n2. Continuar y probar el envío directamente');
             }
         }
         
@@ -677,8 +727,12 @@
                     const type = document.getElementById('message-type').value;
                     const fileUrl = document.getElementById('file-url').value;
                     
+                    // Detectar protocolo
+                    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+                    const apiUrl = `${protocol}://api.textmebot.com/send.php`;
+                    
                     // Construir URL según la documentación
-                    let sendUrl = `https://api.textmebot.com/send.php?recipient=${encodeURIComponent(group.id)}&apikey=${encodeURIComponent(apikey)}&text=${encodeURIComponent(messageText)}&json=yes`;
+                    let sendUrl = `${apiUrl}?recipient=${encodeURIComponent(group.id)}&apikey=${encodeURIComponent(apikey)}&text=${encodeURIComponent(messageText)}&json=yes`;
                     
                     // Agregar archivos según el tipo
                     if (type !== 'text' && fileUrl) {
@@ -901,7 +955,7 @@
                 if (!code) continue;
                 
                 try {
-                    const response = await fetch(`https://api.textmebot.com/send.php?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(code)}&json=yes`, {
+                    const response = await fetch(`${window.location.protocol}//api.textmebot.com/send.php?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(code)}&json=yes`, {
                         method: 'GET',
                         mode: 'cors'
                     });
