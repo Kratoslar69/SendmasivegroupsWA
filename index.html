@@ -145,39 +145,144 @@
         }
         
         .groups-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 15px;
             margin-top: 20px;
         }
         
-        .group-card {
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
+        .groups-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
             padding: 15px;
-            transition: all 0.3s ease;
+            background: #f8f9fa;
+            border-radius: 8px;
         }
         
-        .group-card:hover {
-            border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        .groups-search {
+            flex: 1;
+            margin-right: 15px;
         }
         
-        .group-card.selected {
-            border-color: #28a745;
-            background: #f8fff9;
+        .groups-search input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
         }
         
-        .group-card h4 {
-            margin-bottom: 10px;
-            color: #495057;
+        .groups-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .groups-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .group-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f1f3f4;
+            transition: background-color 0.2s;
+        }
+        
+        .group-item:hover {
+            background-color: #f8f9ff;
+        }
+        
+        .group-item:last-child {
+            border-bottom: none;
+        }
+        
+        .group-checkbox {
+            margin-right: 12px;
+            transform: scale(1.1);
         }
         
         .group-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .group-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .group-details {
+            font-size: 11px;
+            color: #6c757d;
+            display: flex;
+            gap: 15px;
+        }
+        
+        .group-detail {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+        
+        .group-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-xs {
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #dc3545;
+            color: #dc3545;
+        }
+        
+        .btn-outline:hover {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .groups-stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
             font-size: 12px;
             color: #6c757d;
-            margin-bottom: 10px;
+        }
+        
+        .bulk-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #fff3cd;
+            border-radius: 6px;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .bulk-actions.hidden {
+            display: none;
         }
         
         .checkbox {
@@ -333,7 +438,32 @@
                 <button class="btn btn-danger" onclick="clearAllGroups()">🗑️ Limpiar Todo</button>
                 
                 <div class="groups-container" id="groups-container">
-                    <!-- Los grupos se cargarán aquí dinámicamente -->
+                    <div class="groups-header">
+                        <div class="groups-search">
+                            <input type="text" id="groups-search" placeholder="🔍 Buscar grupos por nombre..." onkeyup="filterGroups()">
+                        </div>
+                        <div class="groups-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="selectAll()">✅ Todos</button>
+                            <button class="btn btn-sm btn-secondary" onclick="selectNone()">❌ Ninguno</button>
+                            <button class="btn btn-sm btn-secondary" onclick="toggleView()">📋 Vista</button>
+                        </div>
+                    </div>
+                    
+                    <div class="bulk-actions hidden" id="bulk-actions">
+                        <strong>Acciones masivas:</strong>
+                        <button class="btn btn-sm btn-danger" onclick="deleteSelected()">🗑️ Eliminar seleccionados</button>
+                        <button class="btn btn-sm btn-secondary" onclick="exportSelected()">📤 Exportar seleccionados</button>
+                    </div>
+                    
+                    <div class="groups-list" id="groups-list">
+                        <!-- Los grupos se cargarán aquí dinámicamente -->
+                    </div>
+                    
+                    <div class="groups-stats">
+                        <span>Total: <strong id="total-groups">0</strong> grupos</span>
+                        <span>Seleccionados: <strong id="selected-groups">0</strong></span>
+                        <span>Filtrados: <strong id="filtered-groups">0</strong></span>
+                    </div>
                 </div>
                 
                 <div class="status-panel" id="groups-status">
