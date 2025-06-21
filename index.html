@@ -304,7 +304,7 @@
                 <h3>Configuración de API</h3>
                 <div class="form-group">
                     <label for="apikey">API Key de TextMeBot:</label>
-                    <input type="password" id="apikey" class="form-control" placeholder="Ingresa tu API Key">
+                    <input type="password" id="apikey" class="form-control" placeholder="Ingresa tu API Key" value="DAwFasxdhqor">
                     <small style="color: #6c757d;">Obtén tu API Key en <a href="https://textmebot.com" target="_blank">textmebot.com</a></small>
                 </div>
                 
@@ -447,27 +447,39 @@
             try {
                 showAlert('connection-status', 'warning', 'Verificando conexión...');
                 
-                // Test con número inválido para verificar API key
-                const response = await fetch('https://api.textmebot.com/send.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        recipient: '+123456789',
-                        apikey: apikey,
-                        text: 'test'
-                    })
+                // Test usando GET con parámetros como en la documentación
+                const testUrl = `https://api.textmebot.com/send.php?recipient=123456789&apikey=${encodeURIComponent(apikey)}&text=test&json=yes`;
+                
+                const response = await fetch(testUrl, {
+                    method: 'GET',
+                    mode: 'cors'
                 });
                 
                 const result = await response.text();
+                console.log('Test response:', result);
                 
-                if (result.includes('Invalid APIkey')) {
-                    showAlert('connection-status', 'danger', '❌ API Key inválida');
-                } else {
-                    showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida');
-                    saveConfig();
+                try {
+                    const jsonResult = JSON.parse(result);
+                    if (jsonResult.status === 'error' && jsonResult.comment === 'Invalid APIkey') {
+                        showAlert('connection-status', 'danger', '❌ API Key inválida');
+                    } else {
+                        showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida');
+                        saveConfig();
+                    }
+                } catch (parseError) {
+                    // Si no es JSON, verificar por texto
+                    if (result.includes('Invalid Premium APIkey') || result.includes('Invalid APIkey')) {
+                        showAlert('connection-status', 'danger', '❌ API Key inválida');
+                    } else if (result.includes('Failed') && result.includes('Invalid Destination')) {
+                        showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida (número de prueba inválido como se esperaba)');
+                        saveConfig();
+                    } else {
+                        showAlert('connection-status', 'success', '✅ Conexión exitosa - API Key válida');
+                        saveConfig();
+                    }
                 }
             } catch (error) {
-                showAlert('connection-status', 'danger', '❌ Error de conexión: ' + error.message);
+                showAlert('connection-status', 'danger', '❌ Error de conexión: ' + error.message + '. Intenta usar HTTP en lugar de HTTPS si estás en localhost.');
             }
         }
         
@@ -482,28 +494,40 @@
             }
             
             try {
-                const response = await fetch(`https://api.textmebot.com/send.php?apikey=${apikey}&group_info=${invitationCode}&json=yes`);
-                const result = await response.json();
+                // Usar GET como en la documentación
+                const response = await fetch(`https://api.textmebot.com/send.php?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(invitationCode)}&json=yes`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
                 
-                if (result.status) {
-                    const group = {
-                        id: result.group_id,
-                        name: result.subject,
-                        invitationCode: invitationCode,
-                        selected: true
-                    };
+                const resultText = await response.text();
+                console.log('Group info response:', resultText);
+                
+                try {
+                    const result = JSON.parse(resultText);
                     
-                    // Evitar duplicados
-                    if (!groups.find(g => g.id === group.id)) {
-                        groups.push(group);
-                        renderGroups();
-                        document.getElementById('invitation-code').value = '';
-                        saveConfig();
+                    if (result.status) {
+                        const group = {
+                            id: result.group_id,
+                            name: result.subject,
+                            invitationCode: invitationCode,
+                            selected: true
+                        };
+                        
+                        // Evitar duplicados
+                        if (!groups.find(g => g.id === group.id)) {
+                            groups.push(group);
+                            renderGroups();
+                            document.getElementById('invitation-code').value = '';
+                            saveConfig();
+                        } else {
+                            alert('Este grupo ya está agregado');
+                        }
                     } else {
-                        alert('Este grupo ya está agregado');
+                        alert('Error al obtener información del grupo: ' + (result.msg || result.comment || 'Error desconocido'));
                     }
-                } else {
-                    alert('Error al obtener información del grupo: ' + result.msg);
+                } catch (parseError) {
+                    alert('Error al procesar respuesta del servidor. Verifica tu API Key y código de invitación.');
                 }
             } catch (error) {
                 alert('Error de conexión: ' + error.message);
@@ -650,34 +674,55 @@
                                           .replace('{fecha}', new Date().toLocaleDateString())
                                           .replace('{hora}', new Date().toLocaleTimeString());
                     
-                    const payload = {
-                        recipient: group.id,
-                        apikey: apikey,
-                        text: messageText
-                    };
-                    
                     const type = document.getElementById('message-type').value;
                     const fileUrl = document.getElementById('file-url').value;
                     
+                    // Construir URL según la documentación
+                    let sendUrl = `https://api.textmebot.com/send.php?recipient=${encodeURIComponent(group.id)}&apikey=${encodeURIComponent(apikey)}&text=${encodeURIComponent(messageText)}&json=yes`;
+                    
+                    // Agregar archivos según el tipo
                     if (type !== 'text' && fileUrl) {
                         if (type === 'image' || type === 'video') {
-                            payload.file = fileUrl;
+                            sendUrl += `&file=${encodeURIComponent(fileUrl)}`;
                         } else if (type === 'audio') {
-                            payload.audio = fileUrl;
+                            sendUrl += `&audio=${encodeURIComponent(fileUrl)}`;
                         } else if (type === 'document') {
-                            payload.document = fileUrl;
+                            sendUrl += `&document=${encodeURIComponent(fileUrl)}`;
                         }
                     }
                     
-                    const response = await fetch('https://api.textmebot.com/send.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                    console.log('Sending to:', sendUrl);
+                    
+                    const response = await fetch(sendUrl, {
+                        method: 'GET',
+                        mode: 'cors'
                     });
                     
-                    const result = await response.json();
+                    const resultText = await response.text();
+                    console.log('Send response:', resultText);
                     
-                    if (result.status === 'success') {
+                    let success = false;
+                    let errorMessage = 'Error desconocido';
+                    
+                    try {
+                        const result = JSON.parse(resultText);
+                        if (result.status === 'success') {
+                            success = true;
+                        } else {
+                            errorMessage = result.comment || 'Error en el envío';
+                        }
+                    } catch (parseError) {
+                        // Si no es JSON, verificar por texto HTML
+                        if (resultText.includes('Success!') || resultText.includes('success')) {
+                            success = true;
+                        } else if (resultText.includes('Failed') || resultText.includes('ERROR')) {
+                            errorMessage = 'Error en el envío (ver consola para detalles)';
+                        } else {
+                            success = true; // Asumir éxito si no hay error explícito
+                        }
+                    }
+                    
+                    if (success) {
                         statusItem.className = 'status-item success';
                         statusItem.innerHTML = `
                             <span>${group.name}</span>
@@ -688,7 +733,7 @@
                         statusItem.className = 'status-item error';
                         statusItem.innerHTML = `
                             <span>${group.name}</span>
-                            <span>❌ Error: ${result.comment}</span>
+                            <span>❌ Error: ${errorMessage}</span>
                         `;
                     }
                 } catch (error) {
@@ -856,21 +901,30 @@
                 if (!code) continue;
                 
                 try {
-                    const response = await fetch(`https://api.textmebot.com/send.php?apikey=${apikey}&group_info=${code}&json=yes`);
-                    const result = await response.json();
+                    const response = await fetch(`https://api.textmebot.com/send.php?apikey=${encodeURIComponent(apikey)}&group_info=${encodeURIComponent(code)}&json=yes`, {
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                    const resultText = await response.text();
                     
-                    if (result.status) {
-                        const group = {
-                            id: result.group_id,
-                            name: result.subject,
-                            invitationCode: code,
-                            selected: true
-                        };
+                    try {
+                        const result = JSON.parse(resultText);
                         
-                        // Evitar duplicados
-                        if (!groups.find(g => g.id === group.id)) {
-                            groups.push(group);
+                        if (result.status) {
+                            const group = {
+                                id: result.group_id,
+                                name: result.subject,
+                                invitationCode: code,
+                                selected: true
+                            };
+                            
+                            // Evitar duplicados
+                            if (!groups.find(g => g.id === group.id)) {
+                                groups.push(group);
+                            }
                         }
+                    } catch (parseError) {
+                        console.error(`Error parsing group ${code}:`, parseError);
                     }
                     
                     // Pequeña pausa entre requests
