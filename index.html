@@ -445,7 +445,9 @@
                         <div class="groups-actions">
                             <button class="btn btn-sm btn-secondary" onclick="selectAll()">✅ Todos</button>
                             <button class="btn btn-sm btn-secondary" onclick="selectNone()">❌ Ninguno</button>
-                            <button class="btn btn-sm btn-secondary" onclick="toggleView()">📋 Vista</button>
+                            <button class="btn btn-sm btn-secondary" onclick="toggleSort()" title="Cambiar orden">
+                                🔤 ${sortDirection === 'asc' ? 'A-Z' : 'Z-A'}
+                            </button>
                         </div>
                     </div>
                     
@@ -546,24 +548,196 @@
     </div>
 
     <script>
+        // Variables globales
         let groups = [];
         let sendingProcess = null;
         let currentTab = 'config';
+        let filteredGroups = [];
+        let isCardView = false;
+        let sortDirection = 'asc'; // 'asc' o 'desc'
         
-        // Gestión de pestañas
-        function switchTab(tab) {
-            // Ocultar todas las pestañas
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        // Ordenar grupos por nombre
+        function sortGroups() {
+            groups.sort((a, b) => {
+                const nameA = a.name.toLowerCase();
+                const nameB = b.name.toLowerCase();
+                
+                if (sortDirection === 'asc') {
+                    return nameA.localeCompare(nameB);
+                } else {
+                    return nameB.localeCompare(nameA);
+                }
+            });
+        }
+        
+        // Renderizar lista de grupos
+        function renderGroups() {
+            const container = document.getElementById('groups-list');
+            if (!container) return;
             
-            // Mostrar pestaña seleccionada
-            document.getElementById(tab + '-tab').classList.remove('hidden');
-            event.target.classList.add('active');
-            currentTab = tab;
+            // Ordenar grupos antes de renderizar
+            sortGroups();
             
-            if (tab === 'send') {
-                updateSendSummary();
+            container.innerHTML = '';
+            
+            // Aplicar filtro si existe
+            const searchTerm = document.getElementById('groups-search')?.value.toLowerCase() || '';
+            filteredGroups = groups.filter(group => 
+                group.name.toLowerCase().includes(searchTerm) ||
+                group.id.toLowerCase().includes(searchTerm) ||
+                group.invitationCode.toLowerCase().includes(searchTerm)
+            );
+            
+            // Ordenar también los grupos filtrados
+            filteredGroups.sort((a, b) => {
+                const nameA = a.name.toLowerCase();
+                const nameB = b.name.toLowerCase();
+                
+                if (sortDirection === 'asc') {
+                    return nameA.localeCompare(nameB);
+                } else {
+                    return nameB.localeCompare(nameA);
+                }
+            });
+            
+            if (filteredGroups.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #6c757d;">
+                        ${groups.length === 0 ? '📭 No hay grupos agregados' : '🔍 No se encontraron grupos con ese filtro'}
+                    </div>
+                `;
             }
+            
+            filteredGroups.forEach((group, index) => {
+                const originalIndex = groups.indexOf(group);
+                const item = document.createElement('div');
+                item.className = 'group-item';
+                
+                item.innerHTML = `
+                    <input type="checkbox" class="group-checkbox" ${group.selected ? 'checked' : ''} 
+                           onchange="toggleGroupSelection(${originalIndex})" id="group-${originalIndex}">
+                    <div class="group-info">
+                        <div class="group-name" title="${group.name}">${group.name}</div>
+                        <div class="group-details">
+                            <span class="group-detail" title="ID: ${group.id}">ID: ${group.id}</span>
+                            <span class="group-detail" title="Código: ${group.invitationCode}">Código: ${group.invitationCode}</span>
+                            ${group.manual ? '<span style="color: #ffc107;">📝 Manual</span>' : '<span style="color: #28a745;">✅ Validado</span>'}
+                        </div>
+                    </div>
+                    <div class="group-actions">
+                        <button class="btn btn-xs btn-outline" onclick="editGroup(${originalIndex})" title="Editar">✏️</button>
+                        <button class="btn btn-xs btn-outline" onclick="removeGroup(${originalIndex})" title="Eliminar">🗑️</button>
+                    </div>
+                `;
+                
+                container.appendChild(item);
+            });
+            
+            updateGroupsStats();
+            updateBulkActions();
+        }
+        
+        // Actualizar estadísticas
+        function updateGroupsStats() {
+            const totalGroups = groups.length;
+            const selectedGroups = groups.filter(g => g.selected).length;
+            const filteredCount = filteredGroups.length;
+            
+            document.getElementById('total-groups').textContent = totalGroups;
+            document.getElementById('selected-groups').textContent = selectedGroups;
+            document.getElementById('filtered-groups').textContent = filteredCount;
+            document.getElementById('groups-count').textContent = totalGroups;
+        }
+        
+        // Filtrar grupos
+        function filterGroups() {
+            renderGroups();
+        }
+        
+        // Alternar orden de clasificación
+        function toggleSort() {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            renderGroups();
+            saveConfig();
+        }
+        
+        // Seleccionar todos
+        function selectAll() {
+            filteredGroups.forEach(group => {
+                group.selected = true;
+            });
+            renderGroups();
+            saveConfig();
+        }
+        
+        // Deseleccionar todos
+        function selectNone() {
+            filteredGroups.forEach(group => {
+                group.selected = false;
+            });
+            renderGroups();
+            saveConfig();
+        }
+        
+        // Editar grupo
+        function editGroup(index) {
+            const group = groups[index];
+            const newName = prompt('Nuevo nombre del grupo:', group.name);
+            if (newName && newName.trim()) {
+                groups[index].name = newName.trim();
+                renderGroups();
+                saveConfig();
+            }
+        }
+        
+        // Actualizar acciones masivas
+        function updateBulkActions() {
+            const selectedCount = groups.filter(g => g.selected).length;
+            const bulkActions = document.getElementById('bulk-actions');
+            
+            if (selectedCount > 1) {
+                bulkActions.classList.remove('hidden');
+            } else {
+                bulkActions.classList.add('hidden');
+            }
+        }
+        
+        // Eliminar seleccionados
+        function deleteSelected() {
+            const selectedGroups = groups.filter(g => g.selected);
+            if (selectedGroups.length === 0) {
+                alert('No hay grupos seleccionados');
+                return;
+            }
+            
+            if (confirm(`¿Eliminar ${selectedGroups.length} grupos seleccionados?`)) {
+                groups = groups.filter(g => !g.selected);
+                renderGroups();
+                saveConfig();
+            }
+        }
+        
+        // Exportar seleccionados
+        function exportSelected() {
+            const selectedGroups = groups.filter(g => g.selected);
+            if (selectedGroups.length === 0) {
+                alert('No hay grupos seleccionados');
+                return;
+            }
+            
+            const exportData = {
+                groups: selectedGroups,
+                exportDate: new Date().toISOString(),
+                totalGroups: selectedGroups.length
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grupos-seleccionados-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
         
         // Verificar conexión con la API
@@ -663,15 +837,16 @@
                             selected: true
                         };
                         
-                        // Evitar duplicados
-                        if (!groups.find(g => g.id === group.id)) {
-                            groups.push(group);
-                            renderGroups();
-                            document.getElementById('invitation-code').value = '';
-                            saveConfig();
-                        } else {
-                            alert('Este grupo ya está agregado');
-                        }
+                            // Evitar duplicados
+                            if (!groups.find(g => g.id === group.id)) {
+                                groups.push(group);
+                                renderGroups(); // Esto automáticamente ordenará por nombre
+                                document.getElementById('invitation-code').value = '';
+                                saveConfig();
+                                alert(`Grupo "${group.name}" agregado y ordenado correctamente.`);
+                            } else {
+                                alert('Este grupo ya está agregado');
+                            }
                     } else {
                         alert('Error al obtener información del grupo: ' + (result.msg || result.comment || 'Error desconocido'));
                     }
@@ -704,36 +879,27 @@
             };
             
             groups.push(group);
-            renderGroups();
+            renderGroups(); // Esto automáticamente ordenará por nombre
             document.getElementById('invitation-code').value = '';
             saveConfig();
             
-            alert(`Grupo "${groupName}" agregado manualmente. El envío se intentará con el código de invitación.`);
+            alert(`Grupo "${groupName}" agregado manualmente. Los grupos se han ordenado por nombre.`);
         }
         
-        // Renderizar lista de grupos
-        function renderGroups() {
-            const container = document.getElementById('groups-container');
-            container.innerHTML = '';
+        // Gestión de pestañas
+        function switchTab(tab) {
+            // Ocultar todas las pestañas
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             
-            groups.forEach((group, index) => {
-                const card = document.createElement('div');
-                card.className = `group-card ${group.selected ? 'selected' : ''}`;
-                card.innerHTML = `
-                    <h4>${group.name}</h4>
-                    <div class="group-info">ID: ${group.id}</div>
-                    <div class="group-info">Código: ${group.invitationCode}</div>
-                    <label>
-                        <input type="checkbox" class="checkbox" ${group.selected ? 'checked' : ''} 
-                               onchange="toggleGroupSelection(${index})">
-                        Incluir en envío
-                    </label>
-                    <button class="btn btn-danger btn-sm" onclick="removeGroup(${index})" style="margin-top: 10px;">Eliminar</button>
-                `;
-                container.appendChild(card);
-            });
+            // Mostrar pestaña seleccionada
+            document.getElementById(tab + '-tab').classList.remove('hidden');
+            event.target.classList.add('active');
+            currentTab = tab;
             
-            document.getElementById('groups-count').textContent = groups.length;
+            if (tab === 'send') {
+                updateSendSummary();
+            }
         }
         
         // Toggle selección de grupo
@@ -745,7 +911,7 @@
         
         // Eliminar grupo
         function removeGroup(index) {
-            if (confirm('¿Eliminar este grupo?')) {
+            if (confirm(`¿Eliminar el grupo "${groups[index].name}"?`)) {
                 groups.splice(index, 1);
                 renderGroups();
                 saveConfig();
@@ -976,7 +1142,8 @@
                 groups: groups,
                 messageText: document.getElementById('message-text').value,
                 messageType: document.getElementById('message-type').value,
-                fileUrl: document.getElementById('file-url').value
+                fileUrl: document.getElementById('file-url').value,
+                sortDirection: sortDirection
             };
             localStorage.setItem('whatsapp-bulk-config', JSON.stringify(config));
         }
@@ -992,6 +1159,7 @@
                 document.getElementById('message-text').value = config.messageText || '';
                 document.getElementById('message-type').value = config.messageType || 'text';
                 document.getElementById('file-url').value = config.fileUrl || '';
+                sortDirection = config.sortDirection || 'asc';
                 
                 renderGroups();
                 toggleMessageType();
@@ -1160,10 +1328,30 @@
                 <p>• Selecciona grupos y revisa el resumen</p>
                 <p>• ⚠️ <strong>IMPORTANTE:</strong> Debes ser miembro de todos los grupos</p>
                 
-                <h4>🛠️ Consejos</h4>
-                <p>• Usa retraso de 2-3 segundos entre envíos</p>
-                <p>• Prueba con pocos grupos primero</p>
-                <p>• Guarda tu configuración regularmente</p>
+                            <div class="step">
+                                <span class="step-number">1</span>
+                                <strong>Agregar grupos uno por uno:</strong> Usa el código de invitación de cada grupo
+                            </div>
+                            
+                            <div class="step">
+                                <span class="step-number">2</span>
+                                <strong>Orden automático:</strong> Los grupos se ordenan por nombre automáticamente
+                            </div>
+                            
+                            <div class="step">
+                                <span class="step-number">3</span>
+                                <strong>Búsqueda rápida:</strong> Usa el buscador para encontrar grupos específicos
+                            </div>
+                            
+                            <div class="step">
+                                <span class="step-number">4</span>
+                                <strong>Cambiar orden:</strong> Usa el botón "A-Z" para alternar entre ascendente y descendente
+                            </div>
+                            
+                            <div class="step">
+                                <span class="step-number">5</span>
+                                <strong>Gestión masiva:</strong> Selecciona múltiples grupos para acciones en lote
+                            </div>
             </div>
             `;
             
