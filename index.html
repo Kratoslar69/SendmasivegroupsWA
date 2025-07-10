@@ -766,27 +766,121 @@
                                           .replace('{fecha}', new Date().toLocaleDateString())
                                           .replace('{hora}', new Date().toLocaleTimeString());
                     
-                    // Simular envío (reemplazar con lógica real)
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const type = document.getElementById('message-type').value;
+                    const fileUrl = document.getElementById('file-url').value;
                     
-                    // Simular resultado (50% éxito para demo)
-                    const success = Math.random() > 0.3;
+                    // Usar proxy CORS para envío REAL
+                    const proxyUrl = 'https://api.allorigins.win/get?url=';
+                    
+                    // Construir URL según la documentación de TextMeBot
+                    let targetUrl = `http://api.textmebot.com/send.php?recipient=${encodeURIComponent(group.id)}&apikey=${encodeURIComponent(apikey)}&text=${encodeURIComponent(messageText)}&json=yes`;
+                    
+                    // Agregar archivos según el tipo
+                    if (type !== 'text' && fileUrl) {
+                        if (type === 'image' || type === 'video') {
+                            targetUrl += `&file=${encodeURIComponent(fileUrl)}`;
+                        } else if (type === 'audio') {
+                            targetUrl += `&audio=${encodeURIComponent(fileUrl)}`;
+                        } else if (type === 'document') {
+                            targetUrl += `&document=${encodeURIComponent(fileUrl)}`;
+                        }
+                    }
+                    
+                    const sendUrl = proxyUrl + encodeURIComponent(targetUrl);
+                    console.log('Enviando a:', group.name, 'URL:', sendUrl);
+                    
+                    // Intentar envío con reintentos
+                    let success = false;
+                    let errorMessage = 'Error desconocido';
+                    let retryCount = 0;
+                    const maxRetries = 2;
+                    
+                    while (!success && retryCount <= maxRetries) {
+                        try {
+                            const response = await fetch(sendUrl, {
+                                method: 'GET',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                            
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            
+                            const data = await response.json();
+                            const resultText = data.contents;
+                            
+                            console.log('Respuesta del envío:', resultText);
+                            
+                            try {
+                                const result = JSON.parse(resultText);
+                                if (result.status === 'success') {
+                                    success = true;
+                                } else {
+                                    errorMessage = result.comment || result.msg || 'Error en el envío';
+                                    
+                                    // Si el error es de delay, aumentar tiempo de espera
+                                    if (errorMessage.includes('Delay needed') || errorMessage.includes('delay')) {
+                                        errorMessage = 'Error: Necesita más tiempo entre envíos';
+                                        // Espera adicional antes del siguiente intento
+                                        if (retryCount < maxRetries) {
+                                            await new Promise(resolve => setTimeout(resolve, 5000));
+                                        }
+                                    }
+                                }
+                            } catch (parseError) {
+                                // Si no es JSON, verificar por texto HTML
+                                if (resultText.includes('Success!') || resultText.includes('success')) {
+                                    success = true;
+                                } else if (resultText.includes('Failed') || resultText.includes('ERROR')) {
+                                    errorMessage = 'Error en el envío (ver consola para detalles)';
+                                } else if (resultText.includes('Invalid APIkey')) {
+                                    errorMessage = 'API Key inválida';
+                                    break; // No reintentar con API key inválida
+                                } else {
+                                    // Si no hay error explícito, asumir éxito
+                                    success = true;
+                                }
+                            }
+                        } catch (fetchError) {
+                            errorMessage = `Failed to fetch: ${fetchError.message}`;
+                            console.error('Error de conexión:', fetchError);
+                            
+                            // Para errores de conexión, esperar antes de reintentar
+                            if (retryCount < maxRetries) {
+                                await new Promise(resolve => setTimeout(resolve, 3000));
+                            }
+                        }
+                        
+                        retryCount++;
+                        
+                        // Si no fue exitoso y quedan reintentos, actualizar status
+                        if (!success && retryCount <= maxRetries) {
+                            statusItem.innerHTML = `
+                                <span>${group.name}</span>
+                                <span>🔄 Reintentando (${retryCount}/${maxRetries})...</span>
+                            `;
+                        }
+                    }
                     
                     if (success) {
                         statusItem.className = 'status-item success';
                         statusItem.innerHTML = `
                             <span>${group.name}</span>
-                            <span>✅ Enviado</span>
+                            <span>✅ Enviado${retryCount > 1 ? ` (reintento ${retryCount-1})` : ''}</span>
                         `;
                         sent++;
                     } else {
                         statusItem.className = 'status-item error';
                         statusItem.innerHTML = `
                             <span>${group.name}</span>
-                            <span>❌ Error: Failed to fetch</span>
+                            <span>❌ Error: ${errorMessage}</span>
                         `;
                     }
                 } catch (error) {
+                    console.error('Error general:', error);
                     statusItem.className = 'status-item error';
                     statusItem.innerHTML = `
                         <span>${group.name}</span>
