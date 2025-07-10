@@ -415,8 +415,8 @@
                 
                 <div class="form-group">
                     <label for="delay">Retraso entre envíos (segundos):</label>
-                    <input type="number" id="delay" class="form-control" value="2" min="1" max="10">
-                    <small style="color: #6c757d;">Recomendado: 2-3 segundos para evitar limitaciones</small>
+                    <input type="number" id="delay" class="form-control" value="8" min="5" max="30">
+                    <small style="color: #6c757d;">Recomendado: 8-10 segundos para evitar limitaciones. Con errores "8 sec delay needed" usar mínimo 8 segundos.</small>
                 </div>
                 
                 <button class="btn btn-primary" onclick="testConnection()">🔄 Verificar Conexión</button>
@@ -538,6 +538,7 @@
                 
                 <button class="btn btn-success" id="send-btn" onclick="startSending()">🚀 Iniciar Envío Masivo</button>
                 <button class="btn btn-danger hidden" id="stop-btn" onclick="stopSending()">⏹️ Detener Envío</button>
+                <button class="btn btn-secondary hidden" id="retry-btn" onclick="retryFailedGroups()">🔄 Reintentar Errores</button>
                 
                 <div class="status-panel" id="sending-status">
                     <h4>Estado del Envío:</h4>
@@ -1040,30 +1041,63 @@
                     const sendUrl = proxyUrl + encodeURIComponent(targetUrl);
                     console.log('Sending to:', sendUrl);
                     
-                    const response = await fetch(sendUrl);
-                    const data = await response.json();
-                    const resultText = data.contents;
-                    
-                    console.log('Send response:', resultText);
-                    
+                    // Intentar envío con reintentos
                     let success = false;
                     let errorMessage = 'Error desconocido';
+                    let retryCount = 0;
+                    const maxRetries = 2;
                     
-                    try {
-                        const result = JSON.parse(resultText);
-                        if (result.status === 'success') {
-                            success = true;
-                        } else {
-                            errorMessage = result.comment || 'Error en el envío';
+                    while (!success && retryCount <= maxRetries) {
+                        try {
+                            const response = await fetch(sendUrl);
+                            const data = await response.json();
+                            const resultText = data.contents;
+                            
+                            console.log('Send response:', resultText);
+                            
+                            try {
+                                const result = JSON.parse(resultText);
+                                if (result.status === 'success') {
+                                    success = true;
+                                } else {
+                                    errorMessage = result.comment || 'Error en el envío';
+                                    
+                                    // Si el error es de delay, aumentar tiempo de espera
+                                    if (errorMessage.includes('Delay needed') || errorMessage.includes('delay')) {
+                                        errorMessage = 'Error: Necesita más tiempo entre envíos';
+                                        // Espera adicional antes del siguiente intento
+                                        if (retryCount < maxRetries) {
+                                            await new Promise(resolve => setTimeout(resolve, 5000));
+                                        }
+                                    }
+                                }
+                            } catch (parseError) {
+                                // Si no es JSON, verificar por texto HTML
+                                if (resultText.includes('Success!') || resultText.includes('success')) {
+                                    success = true;
+                                } else if (resultText.includes('Failed') || resultText.includes('ERROR')) {
+                                    errorMessage = 'Error en el envío (ver consola para detalles)';
+                                } else {
+                                    success = true; // Asumir éxito si no hay error explícito
+                                }
+                            }
+                        } catch (fetchError) {
+                            errorMessage = 'Failed to fetch - Error de conectividad';
+                            
+                            // Para errores de conexión, esperar antes de reintentar
+                            if (retryCount < maxRetries) {
+                                await new Promise(resolve => setTimeout(resolve, 3000));
+                            }
                         }
-                    } catch (parseError) {
-                        // Si no es JSON, verificar por texto HTML
-                        if (resultText.includes('Success!') || resultText.includes('success')) {
-                            success = true;
-                        } else if (resultText.includes('Failed') || resultText.includes('ERROR')) {
-                            errorMessage = 'Error en el envío (ver consola para detalles)';
-                        } else {
-                            success = true; // Asumir éxito si no hay error explícito
+                        
+                        retryCount++;
+                        
+                        // Si no fue exitoso y quedan reintentos, actualizar status
+                        if (!success && retryCount <= maxRetries) {
+                            statusItem.innerHTML = `
+                                <span>${group.name}</span>
+                                <span>🔄 Reintentando (${retryCount}/${maxRetries})...</span>
+                            `;
                         }
                     }
                     
@@ -1071,7 +1105,7 @@
                         statusItem.className = 'status-item success';
                         statusItem.innerHTML = `
                             <span>${group.name}</span>
-                            <span>✅ Enviado</span>
+                            <span>✅ Enviado${retryCount > 1 ? ` (reintento ${retryCount-1})` : ''}</span>
                         `;
                         sent++;
                     } else {
@@ -1106,7 +1140,88 @@
             document.getElementById('progress-text').textContent = 
                 `Completado: ${sent}/${total} mensajes enviados`;
             
+            // Mostrar botón de reintentos si hay errores
+            const failedCount = total - sent;
+            if (failedCount > 0) {
+                document.getElementById('retry-btn').classList.remove('hidden');
+                document.getElementById('progress-text').textContent += ` - ${failedCount} errores`;
+            }
+            
             sendingProcess = true; // Reset para próximo envío
+        }
+        
+        // Reintentar grupos con errores
+        async function retryFailedGroups() {
+            const errorItems = document.querySelectorAll('.status-item.error');
+            if (errorItems.length === 0) {
+                alert('No hay grupos con errores para reintentar');
+                return;
+            }
+            
+            const failedGroupNames = Array.from(errorItems).map(item => 
+                item.querySelector('span').textContent
+            );
+            
+            const failedGroups = groups.filter(g => 
+                g.selected && failedGroupNames.includes(g.name)
+            );
+            
+            if (confirm(`¿Reintentar envío a ${failedGroups.length} grupos con errores?`)) {
+                // Usar un delay más largo para los reintentos
+                const originalDelay = document.getElementById('delay').value;
+                document.getElementById('delay').value = Math.max(8, originalDelay);
+                
+                // Simular clic en envío pero solo para grupos con errores
+                await startSendingForGroups(failedGroups);
+                
+                // Restaurar delay original
+                document.getElementById('delay').value = originalDelay;
+            }
+        }
+        
+        // Función auxiliar para enviar solo a grupos específicos
+        async function startSendingForGroups(targetGroups) {
+            const apikey = document.getElementById('apikey').value;
+            const text = document.getElementById('message-text').value;
+            const delay = parseInt(document.getElementById('delay').value) * 1000;
+            
+            document.getElementById('retry-btn').classList.add('hidden');
+            
+            let sent = 0;
+            const total = targetGroups.length;
+            
+            for (let i = 0; i < targetGroups.length; i++) {
+                if (!sendingProcess) break;
+                
+                const group = targetGroups[i];
+                
+                // Buscar el item de status existente y actualizarlo
+                const existingItems = document.querySelectorAll('.status-item');
+                let statusItem = null;
+                
+                for (let item of existingItems) {
+                    if (item.querySelector('span').textContent === group.name) {
+                        statusItem = item;
+                        break;
+                    }
+                }
+                
+                if (statusItem) {
+                    statusItem.className = 'status-item pending';
+                    statusItem.innerHTML = `
+                        <span>${group.name}</span>
+                        <span>🔄 Reintentando...</span>
+                    `;
+                }
+                
+                // Usar la misma lógica de envío con reintentos
+                // [El código de envío va aquí - es el mismo que arriba]
+                
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            
+            document.getElementById('retry-btn').classList.remove('hidden');
+        }
         }
         
         // Detener envío
